@@ -1,5 +1,5 @@
 CURL=/usr/bin/curl
-PHP=/usr/bin/php
+PHP=php
 MKDIR=/bin/mkdir
 
 install:
