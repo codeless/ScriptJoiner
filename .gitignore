@@ -1,0 +1,4 @@
+composer.lock
+composer.phar
+nd2md.sh
+vendor/*

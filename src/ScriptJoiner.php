@@ -16,6 +16,10 @@ if (!class_exists('LogMore')) {
 	}
 }
 
+# Start logging:
+LogMore::open('scriptjoiner');
+
+
 # Include the PHP-Parser and the FileLexer:
 if (is_dir('vendor')) {
 	require('vendor/autoload.php');
@@ -26,9 +30,9 @@ require('FileLexer.php');
 
 
 /**
- * Class: POFD
+ * Class: ScriptJoiner
  */
-class POFD {
+class ScriptJoiner {
 
 	/**
 	 * Variable: $masterfile
@@ -49,14 +53,11 @@ class POFD {
 
 
 	/**
-	 * Function: POFD()
+	 * Function: ScriptJoiner()
 	 *
 	 * The constructor
 	 */
-	public function POFD($masterfile=null, $outfile=null) {
-		# Start logging
-		LogMore::open('pofd');
-
+	public function ScriptJoiner($masterfile=null, $outfile=null) {
 		# Initialize:
 		$this->setMasterfile($masterfile);
 		$this->setOutfile($outfile);
@@ -133,7 +134,7 @@ class POFD {
 				echo $code;
 			}
 
-			# Set rc accordingly...
+			$rc = true;
 		}
 
 		return $rc;
@@ -272,3 +273,18 @@ class POFD {
 	}
 
 };
+
+
+# To be able to use ScriptJoiner directly from the commandline, the
+# first argument must be set to the current filename:
+if (isset($argv) && isset($argv[0]) && $argv[0] == 'ScriptJoiner.php') {
+	# If a mainfile has been passed:
+	if (isset($argv[1])) {
+		LogMore::debug('Running ScriptJoiner from the commandline');
+		$mainfile = $argv[1];
+
+		# Run ScripJoiner:
+		$s = new ScriptJoiner($mainfile);
+		$s->run();
+	}
+}

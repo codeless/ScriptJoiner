@@ -4,6 +4,6 @@
 	"homepage" : "https://www.github.com/codeless/pofd",
 	"require" : {
 		"nikic/php-parser" : "0.9.2",
-		"codeless/logmore" : "0.8.1"
+		"codeless/logmore" : "0.8.2"
 	}
 }

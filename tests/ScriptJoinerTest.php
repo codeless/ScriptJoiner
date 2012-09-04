@@ -1,8 +1,8 @@
 <?php
 
-require('src/POFD.php');
+require('src/ScriptJoiner.php');
 
-class POFDTest extends PHPUnit_Framework_TestCase {
+class ScriptJoinerTest extends PHPUnit_Framework_TestCase {
 
 	/**
 	 * Compiles all projects into one-file scripts
@@ -10,15 +10,16 @@ class POFDTest extends PHPUnit_Framework_TestCase {
 	 */
 	public function testProjects() {
 		$numberOfProjects = 4;
-		$p = new POFD();
+		$p = new ScriptJoiner();
 
 		for ($i=1; $i<=$numberOfProjects; $i++) {
 			# Compile filenames:
-			$masterfile = 'tests/project' . $i . '/file1.php';
-			$outfile = 'tests/project' . $i . '_outfile.php';
-			$valid_outfile = 'tests/project' . $i . '_valid.php';
+			$testdir = 'tests/project';
+			$masterfile = $testdir . $i . '/file1.php';
+			$outfile = $testdir . $i . '_outfile.php';
+			$valid_outfile = $testdir . $i . '_valid.php';
 
-			# Initialize POFD:
+			# Initialize ScriptJoiner:
 			$p->setMasterfile($masterfile);
 			$p->setOutfile($outfile);
 			$p->run();
