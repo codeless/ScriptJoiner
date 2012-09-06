@@ -23,13 +23,14 @@ To combine these two files into app.php, a short PHP scripts needs to be written
  	require('vendor/codeless/scriptjoiner/src/ScriptJoiner.php');
 
  	$s = new ScriptJoiner();
- 	$s->setMasterfile('file1.php');
- 	$s->setOutfile('app.php');
+ 	$s->masterfile = 'file1.php';
+ 	$s->outfile = 'app.php';
  	$s->run();
 
 A shorter version would be:
 
  	$s = new ScriptJoiner('file1.php', 'app.php');
+ 	$s->run();
 
 The result looks like this:
 
@@ -38,6 +39,10 @@ The result looks like this:
  	echo 'File 1',PHP_EOL;
  	# file2.php:
  	echo 'File 2',PHP_EOL;
+
+To disable comments in the output, use:
+
+ 	$s->comments = false;
 
 Running PHP ScriptJoiner directly from the commandline:
 
@@ -49,6 +54,11 @@ Note the "1>", which redirects only the stdout to the outfile; PHP ScriptJoiner 
 # Other methods to join PHP scripts
 
 Using PHC, the open source PHP Compiler at http://www.phpcompiler.org/, it should be possible to combine many php scripts into a single file.
+
+
+# Detailed description
+
+ScriptJoiner is just a configurable PrettyPrinter for PHP.
 
 
 # Credits and Bugreports

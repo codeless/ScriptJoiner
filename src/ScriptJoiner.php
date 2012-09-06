@@ -1,38 +1,18 @@
 <?php
 
-# If LogMore has not been included yet
-if (!class_exists('LogMore')) {
-	# Try to find it
-	$paths = array(
-		'LogMore.php',
-		'../vendor/codeless/logmore/src/LogMore.php',
-		'vendor/codeless/logmore/src/LogMore.php'
-	);
-	foreach ($paths as $p) {
-		if (is_file($p)) {
-			require_once($p);
-			break;
-		}
-	}
+# Include requirements if not testing:
+if (!defined('CODELESS_SCRIPTJOINER_TEST')) {
+	require('../vendor/autoload.php');
 }
 
 # Start logging:
 LogMore::open('scriptjoiner');
-
-
-# Include the PHP-Parser and the FileLexer:
-if (is_dir('vendor')) {
-	require('vendor/autoload.php');
-} else {
-	require('../vendor/autoload.php');
-}
-require('FileLexer.php');
-
+LogMore::debug('Including ScriptJoiner');
 
 /**
  * Class: ScriptJoiner
  */
-class ScriptJoiner {
+class ScriptJoiner extends PHPParser_PrettyPrinter_Zend {
 
 	/**
 	 * Variable: $masterfile
@@ -53,14 +33,45 @@ class ScriptJoiner {
 
 
 	/**
-	 * Function: ScriptJoiner()
+	 * Variable: $comments
+	 *
+	 * Flag to enable or disable comments in the output. Per default,
+	 * comments are enabled.
+	 */
+	private $comments;
+
+
+	/**
+	 * Variable: $includedFiles
+	 *
+	 * Table holding the filenames of the files that have been
+	 * included while pretty-printing the masterfile as key.
+	 * The value is the number of times the file has been included.
+	 *
+	 * Example of the contents of $includedFiles:
+	 * > array(
+	 * > 	'file1' => 1,
+	 * > 	'file2' => 3
+	 * > )
+	 */
+	private $includedFiles;
+
+
+	/**
+	 * Function: ScriptJoiner
 	 *
 	 * The constructor
 	 */
 	public function ScriptJoiner($masterfile=null, $outfile=null) {
+		parent::__construct();
+
 		# Initialize:
-		$this->setMasterfile($masterfile);
-		$this->setOutfile($outfile);
+		if ($masterfile) {
+			$this->setMasterfile($masterfile);
+		}
+		$this->outfile = $outfile;
+		$this->comments = true;
+		$this->includedFiles = array();
 	}
 
 
@@ -75,7 +86,7 @@ class ScriptJoiner {
 			LogMore::info('Valid file passed');
 			$this->masterfile = $masterfile;
 		} else {
-			LogMore::info('Invalid file passed: %s',
+			LogMore::error('Invalid file passed: %s',
 				$masterfile);
 		}
 	}
@@ -83,6 +94,9 @@ class ScriptJoiner {
 
 	/**
 	 * Function: setOutfile
+	 *
+	 * Set the outfile for the PrettyPrinter. If left empty,
+	 * output will be printed on the screen.
 	 */
 	public function setOutfile($outfile) {
 		$this->outfile = $outfile;
@@ -90,10 +104,88 @@ class ScriptJoiner {
 
 
 	/**
+	 * Function: __set
+	 *
+	 * Magic method to handle setting of variables.
+	 */
+	public function __set($name, $value) {
+		LogMore::debug('Calling __set');
+
+		# Initialize masterfile:
+		if ($name == 'masterfile') {
+			$this->setMasterfile($value);
+		} else {
+			$this->$name = $value;
+		}
+	}
+
+
+	/**
+	 * Function: pComments
+	 *
+	 * Handles comments
+	 *
+	 * Returns:
+	 *
+	 * 	If comments are enabled, the comments get returned.
+	 * 	If comments are disabled, null is returned
+	 */
+	public function pComments(array $comments) {
+		if ($this->comments) {
+			$comments = parent::pComments($comments);
+		} else {
+			$comments = null;
+		}
+
+		return $comments;
+	}
+
+
+	/**
+	 * Function: pExpr_Include
+	 *
+	 * Handles the inclusion of script-files.
+	 */
+	public function pExpr_Include(PHPParser_Node_Expr_Include $node) {
+		$file_to_include = $node->expr->value;
+
+		if ($file_to_include) {
+			LogMore::debug('File to include: %s', $file_to_include);
+
+			# If the file should be only included/required once
+			if ( 	$node->type == PHPParser_Node_Expr_Include::TYPE_INCLUDE_ONCE ||
+				$node->type == PHPParser_Node_Expr_Include::TYPE_REQUIRE_ONCE)
+			{
+				# If the file has already been included
+				if (isset($this->includedFiles[$file_to_include])) {
+					LogMore::debug('File has already been included once');
+
+					# Leave function
+					return null;
+				}
+			}
+
+			$code = $this->parseFile($file_to_include);
+
+			# Add file to array of included files and raise counter:
+			if (isset($this->includedFiles[$file_to_include])) {
+				$this->includedFiles[$file_to_include] += 1;
+			} else {
+				$this->includedFiles[$file_to_include] = 1;
+			}
+
+			return $code;
+		} else {
+			return parent::pExpr_Include($node);
+		}
+	}
+
+
+	/**
 	 * Function: run
 	 *
-	 * Parses all statements of the masterfile and injects the
-	 * statements of files to include.
+	 * Parses and prints the masterfile either to stdout or
+	 * to the outfile.
 	 *
 	 * Returns:
 	 *
@@ -104,7 +196,6 @@ class ScriptJoiner {
 	public function run() {
 		$rc = false;
 
-		# If both master- and outfile are given
 		if ($this->masterfile) {
 			# Get projectfolder:
 			$mainfolder = dirname($this->masterfile);
@@ -116,22 +207,19 @@ class ScriptJoiner {
 			chdir($mainfolder);
 
 			# Process masterfile:
-			$statements = $this->processFile(
-				basename($this->masterfile));
+			$program = $this->parseFile(basename($this->masterfile));
+
+			# Add PHP tags:
+			$program = '<?php' . PHP_EOL . $program;
 
 			# Switch back to workingdir:
 			chdir($workingdir);
 
-			# Convert statements into valid PHP code:
-			$prettyPrinter = new PHPParser_PrettyPrinter_Zend;
-			$code = '<?php ' . PHP_EOL .
-				$prettyPrinter->prettyPrint($statements);
-
-			# Export statements into outfile
+			# If program should get written to file
 			if ($this->outfile) {
-				file_put_contents($this->outfile, $code);
+				file_put_contents($this->outfile, $program);
 			} else {
-				echo $code;
+				echo $program;
 			}
 
 			$rc = true;
@@ -142,134 +230,25 @@ class ScriptJoiner {
 
 
 	/**
-	 * Function: processFile
-	 *
-	 * Parameters:
-	 *
-	 * 	$file - The file to parse, relative to the directory
-	 * 		of the masterfile
+	 * Function: parseFile
 	 *
 	 * Returns:
 	 *
-	 * 	An array of statements.
+	 * 	The pretty-printed PHP code
 	 */
-	private function processFile($file) {
+	private function parseFile($file) {
+		LogMore::debug('parsing file %s', $file);
+		$statements = file_get_contents($file);
+
 		# Create Parser
-		$parser = new PHPParser_Parser(new FileLexer);
+		$parser = new PHPParser_Parser(new PHPParser_Lexer);
 
-		# Parse file into statements
-		$statements = $parser->parse($file);
+		# Create syntax tree
+		$syntax_tree = $parser->parse($statements);
+		LogMore::debug('Syntax tree parsed');
 
-		# Parse statements
-		return (sizeof($statements))
-			? $this->parseStatements($statements)
-			: null;
-	}
-
-
-	/**
-	 * Function: parseStatements
-	 *
-	 * Wrapper-Function for parseStatement.
-	 */
-	private function parseStatements($statements) {
-		return $this->parseStatement($statements);
-	}
-
-
-	/**
-	 * Function: parseStatement
-	 */
-	private function parseStatement($stmts, $i=0) {
-
-		# Get statement to inspect:
-		$s = $stmts[$i];
-		LogMore::debug('*** Next statement');
-
-		# Get subnodes
-		$subnodes = (method_exists($s, 'getSubNodeNames'))
-			? $s->getSubNodeNames()
-			: null;
-
-		# If statement has subnodes
-		if ($subnodes) {
-			LogMore::debug('Number of subnodes: ' . sizeof($subnodes));
-
-			# Loop through subnodes
-			$s = $this->parseSubnodes($s, $subnodes);
-		}
-
-		# If statement has a type:
-		if (method_exists($s, 'getType')) {
-			# Include statement:
-			if ($s->getType() == 'Expr_Include') {
-				$stmts = $this->parseIncludeStatement($s, $stmts, $i);
-			} else {
-				LogMore::debug('Type of statement: %s', $s->getType());
-			}
-		}
-
-
-		# Raise index
-		$i += 1;
-
-		# If End of statements reached, return whole statements.
-		# Else, recall parseStatement with new index:
-		return (isset($stmts[$i]))
-			? $this->parseStatement($stmts, $i)
-			: $stmts;
-	}
-
-	private function parseIncludeStatement($s, $stmts, $i) {
-		# Inject include-stmts
-		$file = $s->expr->__get('value');
-
-		if ($file) {
-			# Typ des Includes abfragen;
-			# Included files in einem array speichern
-
-			syslog(LOG_DEBUG, 'Include: ' . $file);
-			$add_stmts = $this->processFile($file);
-
-			# Remove include-statement from statements and
-			# inject with the new ones:
-			array_splice($stmts, $i, 1, $add_stmts);
-
-			# Reset:
-			$i = -1;
-		} else {
-			LogMore::debug('Inclusion of dynamic files is not supported');
-		}
-
-		return $stmts;
-	}
-
-	private function parseSubnodes($s, $subnodes) {
-		foreach ($subnodes as $sn) {
-			$sub_stmts = $s->__get($sn);
-
-			# If subnode has statements
-			if (sizeof($sub_stmts) && is_array($sub_stmts)) {
-				LogMore::debug('Subnode: %s, statements: %d',
-					$sn,
-					sizeof($sub_stmts));
-
-				# Process statements
-				$sub_stmts = $this->parseStatements($sub_stmts);
-				$s->__set($sn, $sub_stmts);
-				#$stmts[$i]->__set($sn, $sub_stmts);
-			} elseif (is_object($sub_stmts)) {
-				LogMore::debug('Class of sub-statement is: %s',
-					get_class($sub_stmts));
-				LogMore::debug('Type of sub-statements is %s',
-					$sub_stmts->getType());
-				$subsub_stmts = $sub_stmts->__get('stmts');
-				$subsub_stmts = $this->parseStatements($subsub_stmts);
-				$sub_stmts->__set('stmts', $subsub_stmts);
-			}
-		}
-
-		return $s;
+		# Pretty print syntax tree/convert syntax tree back to PHP statements:
+		return $this->prettyPrint($syntax_tree);
 	}
 
 };
@@ -277,7 +256,7 @@ class ScriptJoiner {
 
 # To be able to use ScriptJoiner directly from the commandline, the
 # first argument must be set to the current filename:
-if (isset($argv) && isset($argv[0]) && $argv[0] == 'ScriptJoiner.php') {
+if (isset($argv) && isset($argv[0]) && basename($argv[0]) == 'ScriptJoiner.php') {
 	# If a mainfile has been passed:
 	if (isset($argv[1])) {
 		LogMore::debug('Running ScriptJoiner from the commandline');

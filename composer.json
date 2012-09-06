@@ -1,9 +1,14 @@
 {
 	"name" : "codeless/scriptjoiner",
-	"keywords" : ["deploy","join","one-file"],
+	"keywords" : ["deploy","join","one-file","prettyprint"],
 	"homepage" : "https://www.github.com/codeless/scriptjoiner",
 	"require" : {
 		"nikic/php-parser" : "0.9.2",
-		"codeless/logmore" : "0.8.2"
+		"codeless/logmore" : "0.8.3"
+	},
+	"autoload": {
+		"psr-0": {
+			"ScriptJoiner": "src"
+		}
 	}
 }
