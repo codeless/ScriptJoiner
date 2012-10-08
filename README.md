@@ -1,3 +1,6 @@
+**ScriptJoiner is replaced by JuggleCode (https://github.com/codeless/jugglecode) and will not get maintained anymore, as of 2012-10-08**
+
+
 # Description
 
 PHP ScriptJoiner is a tiny PHP-Script used to generate one-file PHP applications out of multi-file PHP applications. One-file PHP applications are easier to deploy than multi-file PHP applications, while maintaining applications is more comfortable with multiple files.
@@ -64,3 +67,8 @@ ScriptJoiner is just a configurable PrettyPrinter for PHP.
 # Credits and Bugreports
 
 PHP ScriptJoiner was written by Codeless (http://www.codeless.at/). All bugreports can be directed to more@codeless.at. Even better, bugreports are posted on the github-repository of this package: https://www.github.com/codeless/scriptjoiner
+
+
+# License
+
+This work is licensed under a Creative Commons Attribution 3.0 Unported License: <http://creativecommons.org/licenses/by/3.0/deed.en_US>
